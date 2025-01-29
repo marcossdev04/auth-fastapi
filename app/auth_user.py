@@ -32,7 +32,7 @@ class UserUseCases:
                 detail="Username already exists"
             )
         
-    def user_login(self,user:User,expires_in:int = 30):
+    def user_login(self,user:User,expires_in:int = int(config('JWT_EXPIRE_MINUTES', default=60 * 24))):
         user_on_db = self.db_session.query(UserModel).filter_by(username = user.username).first()
 
         if user_on_db is None:
@@ -58,3 +58,24 @@ class UserUseCases:
             "access_token": token,
             "exp" : exp.isoformat()
         }
+    
+    def verify_token(self, access_token):
+        try:
+            data = jwt.decode(
+                access_token, 
+                SECRET_KEY, 
+                algorithms=[ALGORITHM] 
+        )
+        except JWTError as e:
+            raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}"
+        )
+        
+        user_on_db = self.db_session.query(UserModel).filter_by(username=data['sub']).first()
+
+        if user_on_db is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
